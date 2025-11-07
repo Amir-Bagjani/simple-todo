@@ -32,6 +32,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const body = await request.json();
     const { title, description, completed } = body;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const updateData: any = {};
     if (title !== undefined) updateData.title = title.trim();
     if (description !== undefined) updateData.description = description.trim();
