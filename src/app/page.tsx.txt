@@ -1,0 +1,185 @@
+"use client";
+
+import { useState, useEffect, useTransition } from "react";
+import { Todo, FilterType } from "@/types/todo";
+import TodoForm from "./components/TodoForm";
+import TodoList from "./components/TodoList";
+import {
+  getTodos,
+  createTodoAction,
+  updateTodoAction,
+  deleteTodoAction,
+  clearCompletedAction,
+  toggleTodoAction,
+} from "./actions/todos";
+
+export default function Home() {
+  const [todos, setTodos] = useState<Todo[]>([]);
+  const [filter, setFilter] = useState<FilterType>("all");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  // Load todos from server
+  useEffect(() => {
+    loadTodos();
+  }, []);
+
+  const loadTodos = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await getTodos();
+      setTodos(data);
+    } catch (err) {
+      setError("Failed to load todos");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addTodo = async (title: string, description: string) => {
+    startTransition(async () => {
+      try {
+        setError(null);
+        const newTodo = await createTodoAction(title, description);
+        setTodos((prev) => [newTodo, ...prev]);
+      } catch (err) {
+        setError("Failed to add todo");
+        console.error(err);
+      }
+    });
+  };
+
+  const toggleTodo = async (id: string) => {
+    startTransition(async () => {
+      try {
+        setError(null);
+        const updated = await toggleTodoAction(id);
+        setTodos((prev) => prev.map((t) => (t.id === id ? updated : t)));
+      } catch (err) {
+        setError("Failed to update todo");
+        console.error(err);
+      }
+    });
+  };
+
+  const editTodo = async (id: string, title: string, description: string) => {
+    startTransition(async () => {
+      try {
+        setError(null);
+        const updated = await updateTodoAction(id, { title, description });
+        setTodos((prev) => prev.map((t) => (t.id === id ? updated : t)));
+      } catch (err) {
+        setError("Failed to edit todo");
+        console.error(err);
+      }
+    });
+  };
+
+  const removeTodo = async (id: string) => {
+    startTransition(async () => {
+      try {
+        setError(null);
+        await deleteTodoAction(id);
+        setTodos((prev) => prev.filter((t) => t.id !== id));
+      } catch (err) {
+        setError("Failed to delete todo");
+        console.error(err);
+      }
+    });
+  };
+
+  const clearCompleted = async () => {
+    startTransition(async () => {
+      try {
+        setError(null);
+        await clearCompletedAction();
+        setTodos((prev) => prev.filter((t) => !t.completed));
+      } catch (err) {
+        setError("Failed to clear completed todos");
+        console.error(err);
+      }
+    });
+  };
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading todos...</p>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-4 sm:py-8 md:py-12 px-3 sm:px-4">
+      <div className="max-w-3xl mx-auto">
+        {/* Header */}
+        <div className="text-center mb-6 sm:mb-8 md:mb-12">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-800 mb-1 sm:mb-2">
+            📝 Todo App
+          </h1>
+          <p className="text-sm sm:text-base text-gray-600">
+            Built with Server Actions • Shared in-memory storage
+          </p>
+          <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs sm:text-sm">
+            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+            Server Actions {isPending && "(updating...)"}
+          </div>
+        </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-4 p-3 bg-red-100 border border-red-300 text-red-700 rounded-lg flex items-center justify-between">
+            <span className="text-sm">{error}</span>
+            <button
+              onClick={() => setError(null)}
+              className="text-red-500 hover:text-red-700 ml-2"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* Loading Overlay */}
+        {isPending && (
+          <div className="mb-4 p-2 bg-blue-100 border border-blue-300 text-blue-700 rounded-lg text-center text-sm">
+            <span className="inline-block animate-pulse">Processing...</span>
+          </div>
+        )}
+
+        {/* Main Card */}
+        <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg sm:shadow-xl p-4 sm:p-6 md:p-8">
+          <TodoForm onAdd={addTodo} />
+          <TodoList
+            todos={todos}
+            filter={filter}
+            onToggle={toggleTodo}
+            onDelete={removeTodo}
+            onEdit={editTodo}
+            onFilterChange={setFilter}
+            onClearCompleted={clearCompleted}
+          />
+        </div>
+
+        {/* Info Card */}
+        <div className="mt-6 bg-purple-50 border border-purple-200 rounded-lg p-4 text-sm text-purple-800">
+          <p className="font-semibold mb-1">⚡ Server Actions</p>
+          <p>
+            Using Next.js 15 Server Actions instead of API routes. Actions run
+            on the server and automatically handle data mutations.
+          </p>
+        </div>
+
+        {/* Footer */}
+        <div className="text-center mt-6 sm:mt-8 text-xs sm:text-sm text-gray-600">
+          <p>Built with Next.js 15 Server Actions & Tailwind CSS v4</p>
+        </div>
+      </div>
+    </main>
+  );
+}

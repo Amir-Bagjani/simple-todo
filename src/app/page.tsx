@@ -1,107 +1,69 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { Todo, FilterType } from "@/types/todo";
 import TodoForm from "./components/TodoForm";
 import TodoList from "./components/TodoList";
 import {
-  fetchTodos,
+  getTodos,
   createTodo,
+  toggleTodo,
   updateTodo,
   deleteTodo,
-  clearCompletedTodos,
-} from "@/lib/api";
+  clearCompleted,
+} from "./actions/todos";
 
 export default function Home() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [filter, setFilter] = useState<FilterType>("all");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
 
-  // Load todos from server
   useEffect(() => {
-    loadTodos();
+    getTodos()
+      .then(setTodos)
+      .finally(() => setLoading(false));
   }, []);
 
-  const loadTodos = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await fetchTodos();
-      setTodos(data);
-    } catch (err) {
-      setError("Failed to load todos");
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const addTodo = async (title: string, description: string) => {
-    try {
-      setError(null);
+  const addTodo = (title: string, description: string) => {
+    startTransition(async () => {
       const newTodo = await createTodo(title, description);
       setTodos((prev) => [newTodo, ...prev]);
-    } catch (err) {
-      setError("Failed to add todo");
-      console.error(err);
-    }
+    });
   };
 
-  const toggleTodo = async (id: string) => {
-    const todo = todos.find((t) => t.id === id);
-    if (!todo) return;
-
-    try {
-      setError(null);
-      const updated = await updateTodo(id, { completed: !todo.completed });
+  const handleToggle = (id: string) => {
+    startTransition(async () => {
+      const updated = await toggleTodo(id);
       setTodos((prev) => prev.map((t) => (t.id === id ? updated : t)));
-    } catch (err) {
-      setError("Failed to update todo");
-      console.error(err);
-    }
+    });
   };
 
-  const editTodo = async (id: string, title: string, description: string) => {
-    try {
-      setError(null);
-      const updated = await updateTodo(id, { title, description });
+  const handleEdit = (id: string, title: string, description: string) => {
+    startTransition(async () => {
+      const updated = await updateTodo(id, title, description);
       setTodos((prev) => prev.map((t) => (t.id === id ? updated : t)));
-    } catch (err) {
-      setError("Failed to edit todo");
-      console.error(err);
-    }
+    });
   };
 
-  const removeTodo = async (id: string) => {
-    try {
-      setError(null);
+  const handleDelete = (id: string) => {
+    startTransition(async () => {
       await deleteTodo(id);
       setTodos((prev) => prev.filter((t) => t.id !== id));
-    } catch (err) {
-      setError("Failed to delete todo");
-      console.error(err);
-    }
+    });
   };
 
-  const clearCompleted = async () => {
-    try {
-      setError(null);
-      await clearCompletedTodos();
+  const handleClearCompleted = () => {
+    startTransition(async () => {
+      await clearCompleted();
       setTodos((prev) => prev.filter((t) => !t.completed));
-    } catch (err) {
-      setError("Failed to clear completed todos");
-      console.error(err);
-    }
+    });
   };
 
   if (loading) {
     return (
       <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading todos...</p>
-        </div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
       </main>
     );
   }
@@ -109,59 +71,34 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-4 sm:py-8 md:py-12 px-3 sm:px-4">
       <div className="max-w-3xl mx-auto">
-        {/* Header */}
         <div className="text-center mb-6 sm:mb-8 md:mb-12">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-800 mb-1 sm:mb-2">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-800 mb-2">
             📝 Todo App
           </h1>
           <p className="text-sm sm:text-base text-gray-600">
-            Shared in-memory storage • Everyone sees the same todos
+            With SQLite Database - No signup needed!
           </p>
-          <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs sm:text-sm">
-            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-            Connected to server
+          <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs">
+            <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+            Database: prisma/dev.db
           </div>
         </div>
 
-        {/* Error Message */}
-        {error && (
-          <div className="mb-4 p-3 bg-red-100 border border-red-300 text-red-700 rounded-lg flex items-center justify-between">
-            <span className="text-sm">{error}</span>
-            <button
-              onClick={() => setError(null)}
-              className="text-red-500 hover:text-red-700 ml-2"
-            >
-              ✕
-            </button>
-          </div>
-        )}
-
-        {/* Main Card */}
-        <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg sm:shadow-xl p-4 sm:p-6 md:p-8">
+        <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6 md:p-8">
           <TodoForm onAdd={addTodo} />
           <TodoList
             todos={todos}
             filter={filter}
-            onToggle={toggleTodo}
-            onDelete={removeTodo}
-            onEdit={editTodo}
+            onToggle={handleToggle}
+            onDelete={handleDelete}
+            onEdit={handleEdit}
             onFilterChange={setFilter}
-            onClearCompleted={clearCompleted}
+            onClearCompleted={handleClearCompleted}
           />
         </div>
 
-        {/* Info Card */}
-        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-          <p className="font-semibold mb-1">💡 In-Memory Storage</p>
-          <p>
-            Todos are stored in server memory and shared with everyone. Data
-            will be reset when the server restarts.
-          </p>
-        </div>
-
-        {/* Footer */}
-        <div className="text-center mt-6 sm:mt-8 text-xs sm:text-sm text-gray-600">
-          <p>Built with Next.js 15 & Tailwind CSS v4</p>
+        <div className="text-center mt-6 text-xs text-gray-600">
+          <p>✅ Data saved to local SQLite database</p>
         </div>
       </div>
     </main>
